@@ -18,7 +18,7 @@ export default function ProductDetail() {
     e.preventDefault();
     setTrackStatus('submitting');
     try {
-      const res = await fetch(`http://localhost:8000/track`, {
+      const res = await fetch(`/api/track`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, product_id: parseInt(id), target_price: parseFloat(targetPrice) })
@@ -29,18 +29,16 @@ export default function ProductDetail() {
       setTrackStatus('error');
     }
   };
-  const [history, setHistory] = useState([]);
-  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     const fetchData = async () => {
       setLoading(true);
       try {
-        const prodRes = await fetch(`http://localhost:8000/product/${id}`);
+        const prodRes = await fetch(`/api/product/${id}`);
         const prodData = await prodRes.json();
         setProduct(prodData);
         
-        const histRes = await fetch(`http://localhost:8000/product/${id}/history`);
+        const histRes = await fetch(`/api/product/${id}/history`);
         const histData = await histRes.json();
         
         const formatted = histData.map(h => ({

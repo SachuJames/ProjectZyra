@@ -20,7 +20,7 @@ export default function SearchResults() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/search?q=${encodeURIComponent(q)}`);
+        const response = await fetch(`/api/search?q=${encodeURIComponent(q)}`);
         if (!response.ok) throw new Error("Search API failed");
         const data = await response.json();
         setResults(data);
