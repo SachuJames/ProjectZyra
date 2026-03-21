@@ -1,4 +1,4 @@
-from fastapi import FastAPI, Depends, HTTPException
+from fastapi import FastAPI, Depends, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 import redis.asyncio as redis
 from sqlalchemy import create_engine
@@ -9,16 +9,21 @@ import resend
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy import func, desc
-import google.generativeai as genai
+try:
+    from google import genai
+except ImportError:
+    genai = None
 
 from .database import engine, Base, get_db
 from . import models
 from pydantic import BaseModel
-from .scrapers import scrape_all
+from .scrapers import scrape_all, scrape_url_product
 from typing import Optional, List
 from datetime import timedelta
 from .auth import get_password_hash, verify_password, create_access_token, get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
 import httpx
+from google.oauth2 import id_token
+from google.auth.transport import requests as google_requests
 
 class UserCreate(BaseModel):
     email: str
@@ -47,8 +52,6 @@ if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
 
 GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
-if GEMINI_API_KEY:
-    genai.configure(api_key=GEMINI_API_KEY)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from .normalizer import normalize_results
@@ -57,11 +60,17 @@ app = FastAPI(title="PriceRadar API")
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173", "https://roundish-winterishly-shanelle.ngrok-free.dev"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+@app.middleware("http")
+async def add_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Cross-Origin-Opener-Policy"] = "same-origin-allow-popups"
+    return response
 
 models.Base.metadata.create_all(bind=engine)
 
@@ -114,6 +123,17 @@ async def check_price_drops():
         print("Scheduler Error:", e)
     finally:
         db.close()
+
+from sqlalchemy import text
+
+@app.on_event("startup")
+async def run_migrations():
+    """Safely apply any missing columns to existing tables on startup."""
+    with engine.connect() as conn:
+        conn.execute(text(
+            "ALTER TABLE products ADD COLUMN IF NOT EXISTS rating FLOAT"
+        ))
+        conn.commit()
 
 @app.on_event("startup")
 async def startup_event():
@@ -205,23 +225,32 @@ async def login(user: UserLogin, db: Session = Depends(get_db)):
     )
     return {"access_token": access_token, "token_type": "bearer"}
 
+GOOGLE_CLIENT_ID = os.environ.get("GOOGLE_CLIENT_ID", "824775610152-qhkjic7qiq0fsn4gi1nstudh2ooskojs.apps.googleusercontent.com")
+
 @app.post("/auth/google", response_model=Token)
 async def google_login(req: GoogleLogin, db: Session = Depends(get_db)):
-    async with httpx.AsyncClient() as client:
-        response = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={req.token}")
-        if response.status_code != 200:
-            raise HTTPException(status_code=400, detail="Invalid Google token")
-        user_info = response.json()
+    try:
+        # Verify the ID token natively using Google's python SDK mapping audience domains
+        idinfo = id_token.verify_oauth2_token(
+            req.token,
+            google_requests.Request(),
+            GOOGLE_CLIENT_ID
+        )
         
-    email = user_info.get("email")
-    if not email:
-        raise HTTPException(status_code=400, detail="Email not provided by Google")
+        email = idinfo.get("email")
+        if not email:
+            raise HTTPException(status_code=400, detail="Email not provided by Google")
+            
+        print(f"Validated Identity OK -> User: {email} Audience: {idinfo.get('aud')}")
+    except ValueError as e:
+        print(f"Token validation blocked explicitly: {str(e)}")
+        raise HTTPException(status_code=401, detail=f"invalid_client / token validation explicitly prohibited: {str(e)}")
         
     db_user = db.query(models.User).filter(models.User.email == email).first()
     if not db_user:
         db_user = models.User(
             email=email,
-            full_name=user_info.get("name", email.split('@')[0]),
+            full_name=idinfo.get("name", email.split('@')[0]),
             is_google_auth=True
         )
         db.add(db_user)
@@ -311,7 +340,9 @@ async def perform_scrape(req: ScrapeRequest, db: Session = Depends(get_db)):
     for res in results:
         existing = db.query(models.Product).filter(models.Product.product_url == res["product_url"]).first()
         if not existing:
-            productList = models.Product(**res)
+            valid_fields = {c.name for c in models.Product.__table__.columns}
+            filtered_res = {k: v for k, v in res.items() if k in valid_fields}
+            productList = models.Product(**filtered_res)
             db.add(productList)
             db.flush()
             db.add(models.PriceHistory(product_id=productList.id, platform=productList.platform, price=productList.price))
@@ -347,7 +378,9 @@ async def search_products(q: str, db: Session = Depends(get_db), user: Optional[
     for res in results:
         existing = db.query(models.Product).filter(models.Product.product_url == res["product_url"]).first()
         if not existing:
-            product = models.Product(**res)
+            valid_fields = {c.name for c in models.Product.__table__.columns}
+            filtered_res = {k: v for k, v in res.items() if k in valid_fields}
+            product = models.Product(**filtered_res)
             db.add(product)
             db.flush()
             db.add(models.PriceHistory(product_id=product.id, platform=product.platform, price=product.price))
@@ -389,6 +422,86 @@ async def search_products(q: str, db: Session = Depends(get_db), user: Optional[
         await redis_client.setex(cache_key, 900, json.dumps(output))
         
     return output
+
+class URLSearchRequest(BaseModel):
+    url: str
+
+@app.post("/search/by-url")
+async def search_by_url(payload: URLSearchRequest, db: Session = Depends(get_db)):
+    url = payload.url
+    cache_key = f"search_url:{url}"
+    if redis_client:
+        cached = await redis_client.get(cache_key)
+        if cached:
+            return json.loads(cached)
+            
+    source_product = await scrape_url_product(url)
+    if not source_product:
+        raise HTTPException(status_code=400, detail="Unsupported platform URL or Scraping failed")
+    
+    title = source_product["title"]
+    # Cleanup title generating safe query strings
+    words = title.replace("-", " ").replace("|", " ").split()[:6]
+    search_keyword = " ".join(words)
+    
+    raw_results = await scrape_all(search_keyword)
+    
+    # Ensure source_product exists in array
+    if not any(r.get("product_url") == url for r in raw_results):
+        raw_results.append(source_product)
+        
+    results = normalize_results(raw_results, search_keyword)
+    
+    saved_products = []
+    for res in results:
+        existing = db.query(models.Product).filter(models.Product.product_url == res["product_url"]).first()
+        if not existing:
+            valid_fields = {c.name for c in models.Product.__table__.columns}
+            filtered_res = {k: v for k, v in res.items() if k in valid_fields}
+            product = models.Product(**filtered_res)
+            db.add(product)
+            db.flush()
+            db.add(models.PriceHistory(product_id=product.id, platform=product.platform, price=product.price))
+            saved_products.append(product)
+        else:
+            existing.price = res["price"]
+            existing.title = res["title"]
+            existing.image_url = res["image_url"]
+            existing.group_id = res["group_id"]
+            existing.is_lowest_price = res["is_lowest_price"]
+            db.add(models.PriceHistory(product_id=existing.id, platform=existing.platform, price=existing.price))
+            saved_products.append(existing)
+            
+    db.commit()
+    
+    output = []
+    for p in saved_products:
+        db.refresh(p)
+        output.append({
+            "id": p.id,
+            "title": p.title,
+            "price": p.price,
+            "platform": p.platform,
+            "product_url": p.product_url,
+            "image_url": p.image_url,
+            "group_id": p.group_id,
+            "is_lowest_price": p.is_lowest_price,
+            "scraped_at": p.scraped_at.isoformat() if p.scraped_at else None
+        })
+        
+    output.sort(key=lambda x: x["price"])
+    best_deal = output[0] if output else None
+    
+    final_payload = {
+        "source_product": source_product,
+        "results": output,
+        "best_deal": best_deal
+    }
+    
+    if redis_client:
+        await redis_client.setex(cache_key, 900, json.dumps(final_payload))
+        
+    return final_payload
 
 @app.get("/product/{product_id}")
 async def get_product(product_id: int, db: Session = Depends(get_db)):
@@ -481,8 +594,8 @@ async def get_search_history(db: Session = Depends(get_db)):
 
 @app.get("/product/{product_id}/summary")
 async def get_product_summary(product_id: int, db: Session = Depends(get_db)):
-    if not GEMINI_API_KEY:
-        raise HTTPException(status_code=500, detail="Gemini API Key not configured")
+    if not GEMINI_API_KEY or not genai:
+        raise HTTPException(status_code=500, detail="Gemini API Key or module not configured")
         
     product = db.query(models.Product).filter(models.Product.id == product_id).first()
     if not product:
@@ -491,8 +604,8 @@ async def get_product_summary(product_id: int, db: Session = Depends(get_db)):
     prompt = f"You are a shopping assistant. Based on this product: {product.title} priced at ₹{product.price} on {product.platform}, give a 3-point analysis: 1) Is this a good product? 2) Is this price reasonable for India? 3) Should the user buy now or wait? Keep each point to 1 sentence. Be direct and helpful."
     
     try:
-        model = genai.GenerativeModel("gemini-1.5-flash")
-        response = model.generate_content(prompt)
+        client = genai.Client(api_key=GEMINI_API_KEY)
+        response = client.models.generate_content(model="gemini-2.0-flash", contents=prompt)
         text = response.text
         
         # Parse into up to 3 points

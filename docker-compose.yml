@@ -5,6 +5,7 @@ services:
     image: postgres:15-alpine
     restart: always
     environment:
+      GOOGLE_CLIENT_ID: "824775610152-qhkjic7qiq0fsn4gi1nstudh2ooskojs.apps.googleusercontent.com"
       POSTGRES_USER: ${POSTGRES_USER:-postgres}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
       POSTGRES_DB: ${POSTGRES_DB:-priceradar}
@@ -22,7 +23,11 @@ services:
   backend:
     build: ./backend
     restart: always
+    dns:
+      - 8.8.8.8
+      - 8.8.4.4
     environment:
+      GOOGLE_CLIENT_ID: "824775610152-qhkjic7qiq0fsn4gi1nstudh2ooskojs.apps.googleusercontent.com"
       DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres}@db:5432/${POSTGRES_DB:-priceradar}
       REDIS_URL: redis://redis:6379/0
       SERPAPI_KEY: ${SERPAPI_KEY}
@@ -40,8 +45,9 @@ services:
     ports:
       - "5173:5173"
     environment:
-      - CHOKIDAR_USEPOLLING=true
-      - PORT=5173
+      GOOGLE_CLIENT_ID: "824775610152-qhkjic7qiq0fsn4gi1nstudh2ooskojs.apps.googleusercontent.com"
+      CHOKIDAR_USEPOLLING: "true"
+      PORT: "5173"
     volumes:
       - ./frontend:/app
       - /app/node_modules

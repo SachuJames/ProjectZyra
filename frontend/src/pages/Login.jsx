@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { useAuth } from '../context/AuthContext';
-import { useGoogleLogin } from '@react-oauth/google';
+import { GoogleLogin } from '@react-oauth/google';
 
 export default function Login() {
   const [email, setEmail] = useState('');
@@ -17,7 +17,7 @@ export default function Login() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/auth/login', {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -36,29 +36,24 @@ export default function Login() {
     }
   };
 
-  const googleLogin = useGoogleLogin({
-    onSuccess: async (tokenResponse) => {
-      try {
-        const res = await fetch('http://localhost:8000/auth/google', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ token: tokenResponse.access_token })
-        });
-        const data = await res.json();
-        if (res.ok) {
-          login(data.access_token);
-          navigate('/dashboard');
-        } else {
-          setError(data.detail || 'Google Login failed');
-        }
-      } catch (err) {
-        setError('Google Login network error');
+  const handleGoogleSuccess = async (credentialResponse) => {
+    try {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/google`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: credentialResponse.credential })
+      });
+      const data = await res.json();
+      if (res.ok) {
+        login(data.access_token);
+        navigate('/dashboard');
+      } else {
+        setError(data.detail || 'Google Login failed');
       }
-    },
-    onError: () => {
-      setError('Google Login Failed');
+    } catch (err) {
+      setError('Google Login network error');
     }
-  });
+  };
 
   return (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '80vh', padding: '2rem' }}>
@@ -102,13 +97,18 @@ export default function Login() {
           <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }}></div>
         </div>
 
-        <button 
-          onClick={() => googleLogin()}
-          style={{ width: '100%', padding: '0.875rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'white', color: '#1f2937', fontWeight: 600, borderRadius: '0.5rem', border: 'none', cursor: 'pointer' }}
-        >
-          <img src="https://www.svgrepo.com/show/475656/google-color.svg" alt="Google" style={{ width: '20px' }} />
-          Sign in with Google
-        </button>
+        <div style={{ display: 'flex', justifyContent: 'center', width: '100%' }}>
+          <GoogleLogin
+            onSuccess={handleGoogleSuccess}
+            onError={() => setError('Google Login Failed')}
+            useOneTap
+            shape="rectangular"
+            theme="outline"
+            text="signin_with"
+            size="large"
+            width="100%"
+          />
+        </div>
 
         <p style={{ marginTop: '2rem', textAlign: 'center', fontSize: '0.875rem', color: '#9ca3af' }}>
           Don't have an account? <Link to="/register" style={{ color: '#a855f7', textDecoration: 'none', fontWeight: 600 }}>Register</Link>

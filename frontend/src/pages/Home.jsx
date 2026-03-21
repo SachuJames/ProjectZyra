@@ -160,6 +160,11 @@ export default function Home() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {/^https?:\/\//i.test(query) && (
+              <div className="hidden sm:flex" style={{ position: 'absolute', right: '140px', backgroundColor: 'rgba(168,85,247,0.2)', color: '#c084fc', padding: '0.4rem 0.8rem', borderRadius: '9999px', fontSize: '0.85rem', fontWeight: 600, alignItems: 'center', gap: '0.4rem', pointerEvents: 'none' }}>
+                🔗 Searching by URL
+              </div>
+            )}
             
             <button type="submit" style={{ padding: '1rem 2rem', background: 'linear-gradient(to right, #9333ea, #db2777)', color: 'white', borderRadius: '9999px', fontWeight: 700, boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', cursor: 'pointer', border: 'none', flexShrink: 0, position: 'relative', overflow: 'hidden' }}>
               <span style={{ position: 'relative', zIndex: 10, display: 'flex', alignItems: 'center', gap: '0.5rem' }}>SEARCH</span>

@@ -32,6 +32,7 @@ class Product(Base):
     image_url = Column(String)
     group_id = Column(String, index=True)
     is_lowest_price = Column(Boolean, default=False)
+    rating = Column(Float, nullable=True)
     scraped_at = Column(DateTime(timezone=True), server_default=func.now())
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

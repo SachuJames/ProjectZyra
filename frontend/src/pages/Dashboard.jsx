@@ -16,9 +16,9 @@ export default function Dashboard() {
       
       try {
         const [histRes, alertsRes, searchesRes] = await Promise.all([
-          fetch('http://localhost:8000/dashboard/history', { headers }),
-          fetch('http://localhost:8000/dashboard/alerts', { headers }),
-          fetch('http://localhost:8000/dashboard/searches', { headers })
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/dashboard/history`, { headers }),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/dashboard/alerts`, { headers }),
+          fetch(`${import.meta.env.VITE_API_BASE_URL}/dashboard/searches`, { headers })
         ]);
         
         if (histRes.ok) setHistory(await histRes.json());

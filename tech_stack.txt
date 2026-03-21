@@ -1,0 +1,40 @@
+# ProjectZyra (PriceRadar) - Technology Stack
+
+This document outlines the core technologies, libraries, and frameworks utilized across the ProjectZyra e-commerce aggregation and tracking application.
+
+## 🏗️ Infrastructure & Orchestration
+- **Docker & Docker Compose**: Containerization of all microservices ensuring isolated and consistent environments.
+- **NGINX**: Alpine-based Reverse Proxy responsible for routing port 80 traffic towards the Vite frontend and Uvicorn `/api` upstream blocks.
+
+## ⚙️ Backend (API & Processing Layer)
+- **FastAPI**: High-performance asynchronous Python web framework used for developing the RESTful API endpoints.
+- **Uvicorn**: ASGI web server implementation serving FastAPI.
+- **PostgreSQL**: Primary relational database for persisting users, products, price histories, search logs, and alerts.
+- **SQLAlchemy (Async)**: Object Relational Mapper (ORM) for python-to-database communication schemas.
+- **Redis**: In-memory data store utilized for fast, ephemeral 15-minute caching of search queries reducing upstream scraping latency.
+- **APScheduler**: Advanced Python Scheduler executing background cron jobs tracking active `PriceAlert` records against live e-commerce structures.
+
+## 🕷️ Extraction & AI Engine
+- **Playwright (Python)**: Headless asynchronous browser automation extracting Dynamic DOM configurations from Amazon India and Flipkart.
+- **HTTPX (Async)**: High-speed asynchronous HTTP client manually scraping JSON payloads from raw API endpoints (targeting Myntra, Nykaa, Meesho, Tata CLiQ, Purplle, Snapdeal, and Ajio).
+- **Sentence-Transformers**: Leveraging Hugging Face's `all-MiniLM-L6-v2` model to compute deep vector embeddings on product titles. Used to calculate Cosine Similarity identifying identical products across distinct platforms for grouping (Deduplication).
+- **Google Generative AI**: Gemini-1.5-Flash integration summarizing product tracking potential into 3-point action plans.
+
+## 🔐 Identity & Communication
+- **Google OAuth 2.0 (`google-auth`)**: Native OIDC strict-scope validations verifying Google identity credentials mapping Bearer JWTs via userinfo requests.
+- **Python-JOSE & Passlib (Bcrypt)**: JSON Web Token generation mapping proprietary application identity flows tracking password cryptographic structures natively.
+- **Resend SDK**: Transactional email API distributing automatic "Price Drop" notification triggers when APScheduler rules execute favorably.
+
+## 💻 Frontend (User Interface)
+- **React 18**: Core declarative component-based user interface library.
+- **Vite**: Next-generation lightning-fast frontend tooling delivering optimized bundle build commands mapping NPM pipelines natively.
+- **Tailwind CSS & PostCSS**: Utility-first CSS framework establishing the responsive dimensional layout mapping core spacing constraints.
+- **React Router DOM**: Client-side implicit SPA (Single Page Application) routing mechanism.
+- **@react-oauth/google**: React abstraction library facilitating Google's `OneTap` capabilities generating immediate OIDC tokens.
+- **Vanilla CSS (Keyframes / Layouts)**: Extensive custom application mapping Deep-Space Glassmorphism architectures overriding standard geometries tracking Floating Orbs and custom Backdrop filters.
+ 
+## 🎨 Animations & Data Visualization
+- **Framer Motion**: Production-ready animation library applying orchestrated `AnimatePresence` variant routing, DOM entry staggering, scale physics, and 3D Card flips natively.
+- **tsParticles**: High-performance interactive particle engine mapping the Deep-Space 200+ particle starfield environments.
+- **Recharts**: Composable interactive SVG React charting library plotting exact continuous `PriceHistory` variables scaling linearly.
+- **React-CountUp & Typewriter-Effect**: Interactive sequence delays tracking live integer counters morphing text variables dynamically spanning Search interfaces.

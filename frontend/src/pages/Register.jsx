@@ -18,7 +18,7 @@ export default function Register() {
     setError('');
     setLoading(true);
     try {
-      const res = await fetch('http://localhost:8000/auth/register', {
+      const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ full_name: fullName, email, password })
@@ -40,7 +40,7 @@ export default function Register() {
   const googleLogin = useGoogleLogin({
     onSuccess: async (tokenResponse) => {
       try {
-        const res = await fetch('http://localhost:8000/auth/google', {
+        const res = await fetch(`${import.meta.env.VITE_API_BASE_URL}/auth/google`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ token: tokenResponse.access_token })

@@ -9,6 +9,16 @@ def get_model():
         model = SentenceTransformer('all-MiniLM-L6-v2')
     return model
 
+import re
+def clean_title_for_embedding(title):
+    t = title.lower()
+    t = re.sub(r'\b(xl|xxl|sm|md|lg|kg|gm|ml|ltr|gb|tb|cm|mm|inch|xs)\b', '', t)
+    t = re.sub(r'\(.*?\)', '', t)
+    t = re.sub(r'\[.*?\]', '', t)
+    t = re.sub(r'[^a-z0-9\s]', ' ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
 def normalize_results(results, query=""):
     model = get_model()
     if not results:
@@ -26,8 +36,8 @@ def normalize_results(results, query=""):
     if not results:
         return []
     
-    titles = [res['title'] for res in results]
-    embeddings = model.encode(titles, convert_to_tensor=True)
+    titles_to_embed = [clean_title_for_embedding(res['title']) for res in results]
+    embeddings = model.encode(titles_to_embed, convert_to_tensor=True)
     
     assigned_groups = {}
     
@@ -41,7 +51,7 @@ def normalize_results(results, query=""):
         for j in range(i + 1, len(results)):
             if j not in assigned_groups:
                 sim = util.cos_sim(embeddings[i], embeddings[j]).item()
-                if sim > 0.92:
+                if sim > 0.65:
                     assigned_groups[j] = group_id
                     results[j]['group_id'] = group_id
 

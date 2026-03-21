@@ -1,0 +1,58 @@
+--- Diagnosing Scrapers for Query: 'casual shirt' ---
+
+[Nykaa]
+URL: https://search.nykaa.com/api/search?q=casual%20shirt&channel=website
+Exception Caught: [Errno -2] Name or service not known
+
+[Myntra]
+URL: https://www.myntra.com/gateway/v2/search/casual%20shirt?rows=10&o=0&plaEnabled=false
+Status Code: 401
+Body snippet (first 500 chars): 
+
+[Meesho]
+URL: https://meesho.com/api/v1/products/search?q=casual%20shirt&page=1&limit=10
+Status Code: 403
+Body snippet (first 500 chars): <HTML><HEAD>
+<TITLE>Access Denied</TITLE>
+</HEAD><BODY>
+<H1>Access Denied</H1>
+ 
+You don't have permission to access "http&#58;&#47;&#47;www&#46;meesho&#46;com&#47;api&#47;v1&#47;products&#47;search&#63;" on this server.<P>
+Reference&#32;&#35;18&#46;240a2c17&#46;1774094299&#46;1fad8f1a
+<P>https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;240a2c17&#46;1774094299&#46;1fad8f1a</P>
+</BODY>
+</HTML>
+
+
+[Tata CLiQ]
+URL: https://www.tatacliq.com/api/v1/page/fetch/search-listing?searchCategory=all&text=casual%20shirt&isPwa=true&isRecommendation=false
+Status Code: 200
+Body snippet (first 500 chars): <!doctype html><html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1,shrink-to-fit=no,maximum-scale=5,user-scalable=1"/><meta name="theme-color" content="#ffffff"/><meta name="google-site-verification" content="EU8G54_LSqH0OTlvIXRhrV1fnjGDdh0uBoKYraVKE1I"/><script defer="defer">!function(e,t,a){var n=e.createElement(t),r=e.getElementsByTagName(t)[0];n.src="https://elasticapm-prod.tatacliq.com/elastic-apm-rum.umd.min.js",n.onload=function()
+
+[Ajio]
+URL: https://www.ajio.com/api/search?query=casual%20shirt&pageSize=10&currentPage=0&format=json
+Status Code: 403
+Body snippet (first 500 chars): <HTML><HEAD>
+<TITLE>Access Denied</TITLE>
+</HEAD><BODY>
+<H1>Access Denied</H1>
+ 
+You don't have permission to access "http&#58;&#47;&#47;www&#46;ajio&#46;com&#47;api&#47;search&#63;" on this server.<P>
+Reference&#32;&#35;18&#46;6c43c717&#46;1774094301&#46;b8cbf59
+<P>https&#58;&#47;&#47;errors&#46;edgesuite&#46;net&#47;18&#46;6c43c717&#46;1774094301&#46;b8cbf59</P>
+</BODY>
+</HTML>
+
+
+[Snapdeal]
+URL: https://www.snapdeal.com/acors/json/product/search/v2?keyword=casual%20shirt&pageNum=0&pageSize=10
+Status Code: 404
+Body snippet (first 500 chars): <script>
+    document.addEventListener('DOMContentLoaded', function () {
+        try {
+            if (window.sdLoggerSwitch && typeof SDLogger === "object" && typeof SDLogger.log === 'function') {
+                SDLogger.init(window.SDLoggerConfig || {});
+                var params = { statusCode: "404" };
+                var pathname = window.location.pathname;
+                if (pathname && (pathname.indexOf('/product/') !== -1)) {
+                    params.pogId = pathname.substring(pathn

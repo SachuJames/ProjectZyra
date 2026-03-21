@@ -3,60 +3,28 @@ import { useSearchParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
 import ProductCard from '../components/ProductCard';
 
-const FullScreenLoader = () => {
-  const [msgIdx, setMsgIdx] = useState(0);
-  const messages = ['Scanning Amazon...', 'Scanning Flipkart...', 'Finding best prices...', 'Almost there...'];
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setMsgIdx((prev) => (prev + 1) % messages.length);
-    }, 2000);
-    return () => clearInterval(timer);
-  }, []);
-
-  return (
-    <div style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', backgroundColor: '#0a0a0f', overflow: 'hidden' }}>
-      <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', backgroundColor: '#1f2937', overflow: 'hidden' }}>
-        <div className="animate-progress" style={{ width: '100%', height: '100%', backgroundImage: 'linear-gradient(to right, transparent, #a855f7, #3b82f6)', transformOrigin: 'left' }}></div>
-      </div>
-
-      {[...Array(15)].map((_, i) => (
-        <div 
-          key={i} 
-          className="animate-float-up"
-          style={{ position: 'absolute', color: 'rgba(168,85,247,0.3)', fontWeight: 'bold', pointerEvents: 'none', left: `${Math.random() * 100}%`, animationDelay: `${Math.random() * 5}s`, animationDuration: `${8 + Math.random() * 5}s`, fontSize: `${1 + Math.random()}rem` }}
-        >
-          ₹
-        </div>
-      ))}
-
-      <div style={{ position: 'relative', width: '10rem', height: '10rem', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '3rem' }}>
-        <div className="animate-radar-ping" style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(168,85,247,0.5)' }}></div>
-        <div className="animate-radar-ping animation-delay-500" style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(59,130,246,0.5)' }}></div>
-        <div className="animate-radar-ping animation-delay-1000" style={{ position: 'absolute', inset: 0, borderRadius: '50%', border: '2px solid rgba(99,102,241,0.5)' }}></div>
-        
-        <div style={{ position: 'relative', zIndex: 10, width: '5rem', height: '5rem', backgroundImage: 'linear-gradient(to bottom right, #4f46e5, #9333ea)', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 0 40px rgba(124,58,237,0.7)' }}>
-          <span style={{ color: 'white', fontSize: '2.25rem', fontFamily: 'serif', fontWeight: 900, textShadow: '0 0 15px rgba(255,255,255,0.9)' }}>Z</span>
-        </div>
-      </div>
-
-      <div style={{ height: '3rem', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <AnimatePresence mode="wait">
-          <motion.h3
-            key={msgIdx}
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -10 }}
-            transition={{ duration: 0.4 }}
-            style={{ position: 'absolute', fontSize: '1.5rem', fontWeight: 'bold', color: 'transparent', WebkitBackgroundClip: 'text', backgroundClip: 'text', backgroundImage: 'linear-gradient(to right, #60a5fa, #c084fc)', width: 'max-content', textAlign: 'center' }}
-          >
-            {messages[msgIdx]}
-          </motion.h3>
-        </AnimatePresence>
+const SkeletonCard = () => (
+  <div style={{ 
+    height: '350px', 
+    borderRadius: '1.5rem', 
+    background: 'rgba(255, 255, 255, 0.03)', 
+    border: '1px solid rgba(255, 255, 255, 0.05)', 
+    backdropFilter: 'blur(10px)',
+    overflow: 'hidden',
+    display: 'flex',
+    flexDirection: 'column'
+  }}>
+    <div className="animate-pulse" style={{ height: '60%', backgroundColor: 'rgba(156, 163, 175, 0.1)' }}></div>
+    <div style={{ padding: '1rem', flexGrow: 1, display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+      <div className="animate-pulse" style={{ height: '1.2rem', width: '80%', backgroundColor: 'rgba(156, 163, 175, 0.2)', borderRadius: '4px' }}></div>
+      <div className="animate-pulse" style={{ height: '1rem', width: '60%', backgroundColor: 'rgba(156, 163, 175, 0.2)', borderRadius: '4px' }}></div>
+      <div style={{ marginTop: 'auto', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <div className="animate-pulse" style={{ height: '1.5rem', width: '40%', backgroundColor: 'rgba(156, 163, 175, 0.2)', borderRadius: '4px' }}></div>
+        <div className="animate-pulse" style={{ height: '1rem', width: '20%', backgroundColor: 'rgba(156, 163, 175, 0.2)', borderRadius: '1rem' }}></div>
       </div>
     </div>
-  );
-};
+  </div>
+);
 
 export default function SearchResults() {
   const [searchParams] = useSearchParams();
@@ -65,9 +33,16 @@ export default function SearchResults() {
   
   const [query, setQuery] = useState(rawQ || '');
   const [results, setResults] = useState([]);
+  const [sourceProduct, setSourceProduct] = useState(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message) => {
+    setToast(message);
+    setTimeout(() => setToast(null), 4000);
+  };
 
   useEffect(() => {
     if (!rawQ) {
@@ -79,12 +54,43 @@ export default function SearchResults() {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`/api/search?q=${encodeURIComponent(rawQ)}`);
+        const isUrl = /^https?:\/\//i.test(rawQ);
+        let fetchUrl = `${import.meta.env.VITE_API_BASE_URL}/search?q=${encodeURIComponent(rawQ)}`;
+        let options = undefined;
+        if (isUrl) {
+            fetchUrl = `${import.meta.env.VITE_API_BASE_URL}/search/by-url`;
+            options = {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ url: rawQ })
+            };
+        }
+        
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20 sec max
+        
+        let fetchOptions = { ...options, signal: controller.signal };
+        const response = await fetch(fetchUrl, fetchOptions);
+        clearTimeout(timeoutId);
+
         if (!response.ok) throw new Error("Search API failed");
         const data = await response.json();
-        setResults(data);
+        
+        if (isUrl) {
+            setSourceProduct(data.source_product);
+            setResults(data.results || []);
+        } else {
+            setResults(data);
+            setSourceProduct(null);
+        }
       } catch (err) {
-        setError(err.message);
+        if (err.name === 'AbortError') {
+          showToast("Search timed out. Please try again.");
+          setError("Search timed out.");
+        } else {
+          showToast("Failed to fetch results. Please check your connection.");
+          setError("Failed to fetch results. Please check your connection.");
+        }
       } finally {
         setLoading(false);
       }
@@ -111,7 +117,7 @@ export default function SearchResults() {
       {/* Search Header Row */}
       <div style={{ width: '100%', maxWidth: '80rem', margin: '0 auto 3rem auto', display: 'flex', flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: '2rem', flexWrap: 'wrap' }}>
         <h2 style={{ fontSize: '2.5rem', fontWeight: 800, color: 'white', margin: 0, letterSpacing: '-0.025em' }}>
-          Results for <span style={{ color: 'transparent', WebkitBackgroundClip: 'text', backgroundClip: 'text', backgroundImage: 'linear-gradient(to right, #a855f7, #06b6d4)' }}>"{rawQ}"</span>
+          {/^https?:\/\//i.test(rawQ) ? 'Results for URL Search' : <>Results for <span style={{ color: 'transparent', WebkitBackgroundClip: 'text', backgroundClip: 'text', backgroundImage: 'linear-gradient(to right, #a855f7, #06b6d4)' }}>"{rawQ}"</span></>}
         </h2>
         
         <form 
@@ -136,6 +142,11 @@ export default function SearchResults() {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
             />
+            {/^https?:\/\//i.test(query) && (
+              <div className="hidden sm:flex" style={{ position: 'absolute', right: '115px', backgroundColor: 'rgba(168,85,247,0.2)', color: '#c084fc', padding: '0.3rem 0.6rem', borderRadius: '9999px', fontSize: '0.75rem', fontWeight: 600, alignItems: 'center', pointerEvents: 'none' }}>
+                🔗 URL Search
+              </div>
+            )}
             
             <button type="submit" style={{ padding: '0.75rem 1.5rem', background: 'linear-gradient(to right, #9333ea, #db2777)', color: 'white', borderRadius: '9999px', fontWeight: 700, boxShadow: '0 4px 6px rgba(0,0,0,0.1)', cursor: 'pointer', border: 'none', flexShrink: 0 }}>
               SEARCH
@@ -147,7 +158,11 @@ export default function SearchResults() {
       {/* Content Area */}
       <div style={{ width: '100%', maxWidth: '80rem', margin: '0 auto', flexGrow: 1 }}>
         {loading ? (
-          <FullScreenLoader />
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '2rem', width: '100%' }}>
+            {[...Array(6)].map((_, idx) => (
+              <SkeletonCard key={idx} />
+            ))}
+          </div>
         ) : error ? (
           <motion.div initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} style={{ padding: '2rem', textAlign: 'center', color: '#ef4444', backgroundColor: 'rgba(239, 68, 68, 0.1)', borderRadius: '1.5rem', border: '1px solid rgba(239, 68, 68, 0.2)', fontWeight: 500 }}>
             Error: {error}
@@ -171,15 +186,40 @@ export default function SearchResults() {
           >
             {(() => {
               const uniqueResults = Array.isArray(results) ? results.filter((item, index, self) => index === self.findIndex(p => p.id === item.id)) : [];
-              return uniqueResults.map((product, index) => (
-                <motion.div key={product.id + '-' + index} variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' } } }}>
-                  <ProductCard product={product} absoluteLowest={product.is_lowest_price} />
-                </motion.div>
-              ));
+              return (
+                <>
+                  {sourceProduct && (
+                    <div style={{ gridColumn: '1 / -1', marginBottom: '1rem' }}>
+                      <h3 style={{ color: '#9ca3af', fontSize: '1.2rem', marginBottom: '1.5rem', fontWeight: 500 }}>You searched for:</h3>
+                      <div style={{ maxWidth: '400px', border: '1px solid rgba(168,85,247,0.4)', borderRadius: '20px', padding: '0.5rem', background: 'rgba(168,85,247,0.05)', boxShadow: '0 0 30px rgba(168,85,247,0.1)' }}>
+                        <ProductCard product={sourceProduct} absoluteLowest={false} />
+                      </div>
+                      <div style={{ height: '1px', width: '100%', background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)', margin: '3rem 0' }} />
+                      <h3 style={{ color: 'white', fontSize: '1.5rem', fontWeight: 700 }}>Compared across platforms:</h3>
+                    </div>
+                  )}
+                  {uniqueResults.map((product, index) => (
+                    <motion.div key={product.id + '-' + index} variants={{ hidden: { opacity: 0, y: 40 }, visible: { opacity: 1, y: 0, transition: { type: 'spring' } } }}>
+                      <ProductCard product={product} absoluteLowest={product.is_lowest_price || (index === 0 && sourceProduct)} />
+                    </motion.div>
+                  ))}
+                </>
+              );
             })()}
           </motion.div>
         )}
       </div>
+
+      {toast && (
+        <motion.div
+          initial={{ opacity: 0, y: 50, scale: 0.9 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: 20, scale: 0.9 }}
+          style={{ position: 'fixed', bottom: '2rem', right: '2rem', zIndex: 100, background: 'rgba(239, 68, 68, 0.9)', backdropFilter: 'blur(10px)', border: '1px solid rgba(255, 255, 255, 0.2)', color: 'white', padding: '1rem 1.5rem', borderRadius: '1rem', fontWeight: 600, boxShadow: '0 10px 25px rgba(239, 68, 68, 0.4)' }}
+        >
+          {toast}
+        </motion.div>
+      )}
     </div>
   );
 }
