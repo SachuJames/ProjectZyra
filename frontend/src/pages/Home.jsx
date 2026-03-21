@@ -16,10 +16,10 @@ export default function Home() {
     <div className="flex flex-col items-center justify-center min-h-screen bg-gray-50">
       <div className="w-full max-w-2xl px-4 text-center">
         <h1 className="mb-4 text-6xl font-extrabold tracking-tight text-blue-600">
-          PriceRadar
+          ProjectZyra
         </h1>
         <p className="mb-8 text-xl text-gray-500">
-          Find the lowest price instantly from Amazon and Flipkart.
+          ProjectZyra — Find the lowest price across Amazon, Flipkart and more instantly.
         </p>
 
         <form onSubmit={handleSearch} className="relative">

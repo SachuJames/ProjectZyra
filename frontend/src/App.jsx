@@ -13,7 +13,7 @@ function Navbar() {
                <span className="text-white font-extrabold text-xl font-serif">P</span>
              </div>
              <span className="text-2xl font-extrabold tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-gray-900 to-gray-700">
-               PriceRadar
+               ProjectZyra
              </span>
           </Link>
         </div>

@@ -1,10 +1,16 @@
 from sentence_transformers import SentenceTransformer, util
 import uuid
 
-# Load model globally. During container build, it is cached into the filesystem.
-model = SentenceTransformer('all-MiniLM-L6-v2')
+model = None
+
+def get_model():
+    global model
+    if model is None:
+        model = SentenceTransformer('all-MiniLM-L6-v2')
+    return model
 
 def normalize_results(results):
+    model = get_model()
     if not results:
         return []
     
