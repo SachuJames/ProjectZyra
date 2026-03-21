@@ -8,15 +8,47 @@ import json
 import resend
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 from sqlalchemy.orm import sessionmaker
+from sqlalchemy import func, desc
+import google.generativeai as genai
 
 from .database import engine, Base, get_db
 from . import models
 from pydantic import BaseModel
 from .scrapers import scrape_all
+from typing import Optional, List
+from datetime import timedelta
+from .auth import get_password_hash, verify_password, create_access_token, get_current_user, get_current_user_optional, ACCESS_TOKEN_EXPIRE_MINUTES
+import httpx
+
+class UserCreate(BaseModel):
+    email: str
+    password: str
+    full_name: str
+
+class UserLogin(BaseModel):
+    email: str
+    password: str
+
+class GoogleLogin(BaseModel):
+    token: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+class UserResponse(BaseModel):
+    id: int
+    email: str
+    full_name: str
+    is_google_auth: bool
 
 RESEND_API_KEY = os.environ.get("RESEND_API_KEY", "")
 if RESEND_API_KEY:
     resend.api_key = RESEND_API_KEY
+
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY", "")
+if GEMINI_API_KEY:
+    genai.configure(api_key=GEMINI_API_KEY)
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 from .normalizer import normalize_results
@@ -136,10 +168,134 @@ class TrackRequest(BaseModel):
     product_id: int
     target_price: float
 
+@app.post("/auth/register", response_model=Token)
+async def register(user: UserCreate, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if db_user:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    
+    hashed_password = get_password_hash(user.password)
+    new_user = models.User(
+        email=user.email,
+        password_hash=hashed_password,
+        full_name=user.full_name
+    )
+    db.add(new_user)
+    db.commit()
+    db.refresh(new_user)
+    
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": new_user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/login", response_model=Token)
+async def login(user: UserLogin, db: Session = Depends(get_db)):
+    db_user = db.query(models.User).filter(models.User.email == user.email).first()
+    if not db_user or not db_user.password_hash:
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+    
+    if not verify_password(user.password, db_user.password_hash):
+        raise HTTPException(status_code=400, detail="Incorrect email or password")
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": db_user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.post("/auth/google", response_model=Token)
+async def google_login(req: GoogleLogin, db: Session = Depends(get_db)):
+    async with httpx.AsyncClient() as client:
+        response = await client.get(f"https://oauth2.googleapis.com/tokeninfo?id_token={req.token}")
+        if response.status_code != 200:
+            raise HTTPException(status_code=400, detail="Invalid Google token")
+        user_info = response.json()
+        
+    email = user_info.get("email")
+    if not email:
+        raise HTTPException(status_code=400, detail="Email not provided by Google")
+        
+    db_user = db.query(models.User).filter(models.User.email == email).first()
+    if not db_user:
+        db_user = models.User(
+            email=email,
+            full_name=user_info.get("name", email.split('@')[0]),
+            is_google_auth=True
+        )
+        db.add(db_user)
+        db.commit()
+        db.refresh(db_user)
+        
+    access_token_expires = timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
+    access_token = create_access_token(
+        data={"sub": db_user.email}, expires_delta=access_token_expires
+    )
+    return {"access_token": access_token, "token_type": "bearer"}
+
+@app.get("/auth/me", response_model=UserResponse)
+async def get_me(user: models.User = Depends(get_current_user)):
+    return user
+
+@app.get("/dashboard/alerts")
+async def get_dashboard_alerts(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    alerts = db.query(models.PriceAlert).filter(models.PriceAlert.user_id == user.id).all()
+    result = []
+    for alert in alerts:
+        product = db.query(models.Product).filter(models.Product.id == alert.product_id).first()
+        if product:
+            result.append({
+                "id": alert.id,
+                "product_name": product.title,
+                "product_url": product.product_url,
+                "image_url": product.image_url,
+                "target_price": alert.target_price,
+                "current_price": product.price,
+                "status": "Triggered" if alert.is_triggered else "Active",
+                "created_at": alert.created_at
+            })
+    return result
+
+@app.get("/dashboard/history")
+async def get_dashboard_history(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    alerts = db.query(models.PriceAlert).filter(models.PriceAlert.user_id == user.id).all()
+    product_ids = set([a.product_id for a in alerts])
+    products = db.query(models.Product).filter(models.Product.id.in_(product_ids)).all()
+    
+    result = []
+    for p in products:
+        history = db.query(models.PriceHistory).filter(models.PriceHistory.product_id == p.id).all()
+        lowest_price = min([h.price for h in history]) if history else p.price
+        highest_price = max([h.price for h in history]) if history else p.price
+        
+        status = "Normal"
+        if p.price <= lowest_price * 1.05:
+            status = "Good Time to Buy"
+        elif highest_price > 0 and p.price >= highest_price * 0.95:
+            status = "Wait"
+            
+        result.append({
+            "id": p.id,
+            "title": p.title,
+            "current_price": p.price,
+            "target_price": next((a.target_price for a in alerts if a.product_id == p.id), None),
+            "image_url": p.image_url,
+            "product_url": p.product_url,
+            "buy_status": status
+        })
+    return result
+
+@app.get("/dashboard/searches")
+async def get_dashboard_searches(user: models.User = Depends(get_current_user), db: Session = Depends(get_db)):
+    searches = db.query(models.UserSearch).filter(models.UserSearch.user_id == user.id).order_by(models.UserSearch.created_at.desc()).limit(10).all()
+    return [{"id": s.id, "query": s.query, "created_at": s.created_at} for s in searches]
+
 @app.post("/track")
-async def track_price(req: TrackRequest, db: Session = Depends(get_db)):
+async def track_price(req: TrackRequest, db: Session = Depends(get_db), user: models.User = Depends(get_current_user)):
     alert = models.PriceAlert(
-        email=req.email,
+        email=user.email,
+        user_id=user.id,
         product_id=req.product_id,
         target_price=req.target_price
     )
@@ -150,7 +306,7 @@ async def track_price(req: TrackRequest, db: Session = Depends(get_db)):
 @app.post("/scrape")
 async def perform_scrape(req: ScrapeRequest, db: Session = Depends(get_db)):
     raw_results = await scrape_all(req.query)
-    results = normalize_results(raw_results)
+    results = normalize_results(raw_results, req.query)
     
     for res in results:
         existing = db.query(models.Product).filter(models.Product.product_url == res["product_url"]).first()
@@ -171,7 +327,12 @@ async def perform_scrape(req: ScrapeRequest, db: Session = Depends(get_db)):
     return {"status": "success", "scraped": len(results)}
 
 @app.get("/search")
-async def search_products(q: str, db: Session = Depends(get_db)):
+async def search_products(q: str, db: Session = Depends(get_db), user: Optional[models.User] = Depends(get_current_user_optional)):
+    if user:
+        search_log = models.UserSearch(user_id=user.id, query=q)
+        db.add(search_log)
+        db.commit()
+
     cache_key = f"search:{q.lower()}"
     
     if redis_client:
@@ -180,7 +341,7 @@ async def search_products(q: str, db: Session = Depends(get_db)):
             return json.loads(cached)
             
     raw_results = await scrape_all(q)
-    results = normalize_results(raw_results)
+    results = normalize_results(raw_results, q)
     
     saved_products = []
     for res in results:
@@ -200,6 +361,11 @@ async def search_products(q: str, db: Session = Depends(get_db)):
             db.add(models.PriceHistory(product_id=existing.id, platform=existing.platform, price=existing.price))
             saved_products.append(existing)
             
+    db.commit()
+    
+    # insert search log
+    search_log = models.SearchLog(query=q.lower(), result_count=len(saved_products))
+    db.add(search_log)
     db.commit()
     
     output = []
@@ -258,3 +424,88 @@ async def get_product_history(product_id: int, db: Session = Depends(get_db)):
             "recorded_at": h.recorded_at.isoformat() if h.recorded_at else None
         } for h in history
     ]
+
+@app.get("/admin/stats")
+async def get_admin_stats(db: Session = Depends(get_db)):
+    total_products = db.query(models.Product).count()
+    total_unique_searches = db.query(func.count(func.distinct(models.SearchLog.query))).scalar()
+    total_alerts = db.query(models.PriceAlert).count()
+    total_users = db.query(func.count(func.distinct(models.PriceAlert.email))).scalar()
+
+    platform_counts = db.query(models.Product.platform, func.count(models.Product.id)).group_by(models.Product.platform).all()
+    platform_breakdown = {p[0]: p[1] for p in platform_counts}
+
+    return {
+        "total_products": total_products,
+        "total_unique_searches": total_unique_searches or 0,
+        "total_alerts": total_alerts,
+        "total_users": total_users or 0,
+        "platform_breakdown": platform_breakdown
+    }
+
+@app.get("/admin/top-searches")
+async def get_top_searches(db: Session = Depends(get_db)):
+    top = db.query(models.SearchLog.query, func.count(models.SearchLog.id).label('count')).group_by(models.SearchLog.query).order_by(desc('count')).limit(10).all()
+    return [{"query": t[0], "count": t[1]} for t in top]
+
+@app.get("/admin/platform-breakdown")
+async def get_platform_breakdown(db: Session = Depends(get_db)):
+    platform_counts = db.query(models.Product.platform, func.count(models.Product.id)).group_by(models.Product.platform).all()
+    return [{"name": p[0], "value": p[1]} for p in platform_counts]
+
+@app.get("/admin/recent-alerts")
+async def get_recent_alerts(db: Session = Depends(get_db)):
+    alerts = db.query(models.PriceAlert).order_by(desc(models.PriceAlert.created_at)).limit(20).all()
+    result = []
+    for a in alerts:
+        product = db.query(models.Product).filter(models.Product.id == a.product_id).first()
+        result.append({
+            "id": a.id,
+            "email": a.email,
+            "product_name": product.title if product else "Unknown Product",
+            "target_price": a.target_price,
+            "status": "Triggered" if a.is_triggered else "Active",
+            "created_at": a.created_at.isoformat() if a.created_at else None
+        })
+    return result
+
+@app.get("/admin/search-history")
+async def get_search_history(db: Session = Depends(get_db)):
+    history = db.query(models.SearchLog).order_by(desc(models.SearchLog.searched_at)).limit(50).all()
+    return [{
+        "id": h.id,
+        "query": h.query,
+        "result_count": h.result_count,
+        "searched_at": h.searched_at.isoformat() if h.searched_at else None
+    } for h in history]
+
+@app.get("/product/{product_id}/summary")
+async def get_product_summary(product_id: int, db: Session = Depends(get_db)):
+    if not GEMINI_API_KEY:
+        raise HTTPException(status_code=500, detail="Gemini API Key not configured")
+        
+    product = db.query(models.Product).filter(models.Product.id == product_id).first()
+    if not product:
+        raise HTTPException(status_code=404, detail="Product not found")
+        
+    prompt = f"You are a shopping assistant. Based on this product: {product.title} priced at ₹{product.price} on {product.platform}, give a 3-point analysis: 1) Is this a good product? 2) Is this price reasonable for India? 3) Should the user buy now or wait? Keep each point to 1 sentence. Be direct and helpful."
+    
+    try:
+        model = genai.GenerativeModel("gemini-1.5-flash")
+        response = model.generate_content(prompt)
+        text = response.text
+        
+        # Parse into up to 3 points
+        lines = [line.strip().lstrip("1234567890.-* )") for line in text.strip().split('\\n') if len(line.strip()) > 10]
+        points = [p for p in lines if p][:3]
+        
+        if len(points) < 3:
+            import re
+            split_points = re.split(r'\\b\\d+[\\)\\.]\\s+', text.strip())
+            points = [p.strip().lstrip("-* )") for p in split_points if len(p.strip()) > 5][:3]
+            
+        return {"summary": points}
+    except Exception as e:
+        print("Gemini Error:", e)
+        raise HTTPException(status_code=500, detail=str(e))
+

@@ -1,6 +1,156 @@
-@import "tailwindcss";
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
 
-body {
-  margin: 0;
-  background-color: #f9fafb;
+@layer base {
+  body {
+    background-color: #030308;
+    color: #e5e7eb;
+    overflow-x: hidden;
+  }
+  html {
+    scroll-behavior: smooth;
+  }
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: #030308; }
+::-webkit-scrollbar-thumb { background: #7c3aed; border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: #9333ea; }
+
+/* Progress & Loading Animations */
+@keyframes progress-slide {
+  0% { transform: translateX(-100%); }
+  50% { transform: translateX(0%); }
+  100% { transform: translateX(100%); }
+}
+.animate-progress { animation: progress-slide 2s ease-in-out infinite; }
+@keyframes radar-ping {
+  0% { transform: scale(0.5); opacity: 0.8; }
+  100% { transform: scale(2.5); opacity: 0; }
+}
+.animate-radar-ping { animation: radar-ping 2s cubic-bezier(0, 0, 0.2, 1) infinite; }
+.animation-delay-500 { animation-delay: 500ms; }
+.animation-delay-1000 { animation-delay: 1000ms; }
+@keyframes float-up {
+  0% { transform: translateY(100vh) rotate(0deg); opacity: 0; }
+  10% { opacity: 0.4; }
+  90% { opacity: 0.4; }
+  100% { transform: translateY(-20vh) rotate(360deg); opacity: 0; }
+}
+.animate-float-up { animation: float-up 10s linear infinite; }
+@keyframes shimmer {
+  0% { background-position: -200% center; }
+  100% { background-position: 200% center; }
+}
+.animate-shimmer {
+  background-size: 200% auto;
+  animation: shimmer 3s linear infinite;
+}
+
+/* Cinematic Twinkling Starfield */
+@keyframes twinkle1 {
+  0%, 100% { opacity: 0.8; }
+  50% { opacity: 0.3; }
+}
+@keyframes twinkle2 {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.9; }
+}
+.animate-twinkle1 { animation: twinkle1 4s ease-in-out infinite; }
+.animate-twinkle2 { animation: twinkle2 6s ease-in-out infinite; }
+
+/* Cinematic Background Orbs */
+@keyframes orbit-cw {
+  0% { transform: rotate(0deg) translateX(100px) rotate(0deg); }
+  100% { transform: rotate(360deg) translateX(100px) rotate(-360deg); }
+}
+@keyframes orbit-ccw {
+  0% { transform: rotate(360deg) translateX(150px) rotate(-360deg); }
+  100% { transform: rotate(0deg) translateX(150px) rotate(0deg); }
+}
+@keyframes float-slow {
+  0%, 100% { transform: translateY(0) scale(1); }
+  50% { transform: translateY(50px) scale(1.1); }
+}
+.orb-1 { animation: orbit-cw 30s linear infinite; }
+.orb-2 { animation: orbit-ccw 40s linear infinite; }
+.orb-3 { animation: float-slow 25s ease-in-out infinite; }
+
+/* Drifting Product Pills */
+@keyframes drift-pill-1 {
+  0% { transform: translate(100vw, -10vh); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(-20vw, 30vh); opacity: 0; }
+}
+@keyframes drift-pill-2 {
+  0% { transform: translate(-20vw, 80vh); opacity: 0; }
+  20% { opacity: 1; }
+  80% { opacity: 1; }
+  100% { transform: translate(100vw, 20vh); opacity: 0; }
+}
+.pill-path-1 { animation: drift-pill-1 30s linear infinite; }
+.pill-path-2 { animation: drift-pill-2 35s linear infinite; }
+.pill-path-3 { animation: drift-pill-1 40s linear infinite reverse; }
+
+/* Gradient Cycling Text (Instantly) */
+@keyframes cycle-gradient {
+  0% { filter: hue-rotate(0deg); }
+  100% { filter: hue-rotate(360deg); }
+}
+.animate-gradient-cycle {
+  animation: cycle-gradient 6s linear infinite;
+  background-size: 200% auto;
+}
+
+/* Glowing Form Barrier Pseudo-element */
+@keyframes border-glow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.glow-border {
+  position: relative;
+}
+.glow-border::before {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: 9999px;
+  background: linear-gradient(90deg, #7c3aed, #ec4899, #06b6d4, #7c3aed);
+  background-size: 300% 300%;
+  animation: border-glow 4s ease infinite;
+  z-index: -1;
+  opacity: 0;
+  transition: opacity 0.5s ease;
+}
+.glow-border:focus-within::before {
+  opacity: 1;
+}
+
+/* Moving Process Dash Connections */
+@keyframes dash-move {
+  to { stroke-dashoffset: -20; }
+}
+.animate-dash {
+  animation: dash-move 1s linear infinite;
+}
+@keyframes dot-move {
+  0% { left: 0%; opacity: 0; }
+  10% { opacity: 1; }
+  90% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+.path-dot {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 8px;
+  height: 8px;
+  background-color: #06b6d4;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #06b6d4, 0 0 20px #06b6d4;
+  animation: dot-move 3s ease-in-out infinite;
 }
