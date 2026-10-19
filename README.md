@@ -1,155 +1,144 @@
-# 🛍️ ProjectZyra
+# ProjectZyra
 
-### *AI-powered price comparison across Amazon, Flipkart, Nykaa and more*
+Price comparison across Indian online stores. Search once and Zyra checks
+Amazon, Flipkart, Nykaa, Myntra, Meesho, Tata CLiQ, Ajio and Snapdeal in
+parallel, groups the listings that are actually the same product, and shows
+the prices side by side with the lowest one marked.
 
-<p align="center">
-  <img src="https://img.shields.io/badge/Python-3.11-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python"/>
-  <img src="https://img.shields.io/badge/FastAPI-0.111-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI"/>
-  <img src="https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black" alt="React"/>
-  <img src="https://img.shields.io/badge/PostgreSQL-16-4169E1?style=for-the-badge&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
-  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=for-the-badge&logo=redis&logoColor=white" alt="Redis"/>
-  <img src="https://img.shields.io/badge/Docker-Compose-2496ED?style=for-the-badge&logo=docker&logoColor=white" alt="Docker"/>
-  <img src="https://img.shields.io/badge/License-MIT-22c55e?style=for-the-badge" alt="MIT License"/>
-</p>
+![Python 3.11](https://img.shields.io/badge/python-3.11-blue.svg)
+![FastAPI](https://img.shields.io/badge/FastAPI-0.104%2B-009688.svg)
+![React 18](https://img.shields.io/badge/react-18-61DAFB.svg)
+![PostgreSQL 15](https://img.shields.io/badge/postgresql-15-4169E1.svg)
+![Redis 7](https://img.shields.io/badge/redis-7-DC382D.svg)
+[![License: MIT](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
 
----
+## What it does
 
-## 🎬 Live Demo
+- **One search, eight stores.** Each store has its own scraper (Playwright
+  and HTTPX, depending on the site). They run concurrently under a global
+  timeout, and a store that fails or times out is skipped rather than
+  failing the whole search.
+- **Matching that is more than string equality.** Listings from different
+  stores rarely share a title word for word, so results are grouped by
+  embedding similarity (sentence-transformers, all-MiniLM-L6-v2) over the
+  product titles. Each group gets one entry per store and a lowest price
+  flag.
+- **Price history.** Every search stores what it found, so a product page
+  can show how its price has moved over time, per store.
+- **Price drop alerts.** Track a product with a target price and a
+  scheduler checks active alerts every hour. When a store hits the target,
+  the alert goes out by email through Resend.
+- **Accounts and an admin view.** Register and login with email and
+  password, or sign in with Google. Logged-in users get a dashboard with
+  their alerts, tracked products and search history. The admin dashboard
+  shows platform stats, top searches, a per-store breakdown and recent
+  activity.
+- **An AI summary, if you wire up a key.** With `GEMINI_API_KEY` set, a
+  product page can ask Gemini (gemini-2.0-flash) for a short summary of
+  whether the current price is worth acting on. Without the key, that one
+  endpoint returns an error and everything else works.
 
-> 🔗 **[https://your-ngrok-url.ngrok-free.app](https://your-ngrok-url.ngrok-free.app)**
+Search results are cached in Redis for 15 minutes, so a repeated search is
+served from cache instead of scraping eight stores again.
 
-Search any product and compare prices instantly across platforms — results appear in seconds, powered by real-time scraping and intelligent product matching.
+## Running it
 
-<!-- Replace this line with an animated GIF of the app in action -->
-> 📸 *Demo GIF coming soon*
-
----
-
-## ✨ Features
-
-- 🔍 **Real-time scraping** from Amazon, Flipkart, Nykaa, Myntra and more
-- 🤖 **NLP-powered product matching** using `sentence-transformers` for semantic deduplication
-- ⚡ **Redis caching** for sub-second repeated searches
-- 📊 **Price history tracking** and interactive charts
-- 🔔 **Price drop email alerts** to never miss a deal
-- 👤 **User authentication** with Google OAuth
-- 📱 **Admin dashboard** with analytics and platform health stats
-- 🌙 **Dark mode cinematic UI** built with React
-
----
-
-## 🧰 Tech Stack
-
-| Layer | Technology |
-|---|---|
-| **Frontend** | React 18, Vite, Recharts, Axios |
-| **Backend** | FastAPI, SQLAlchemy, Alembic |
-| **AI / NLP** | sentence-transformers, Google Gemini API |
-| **Scraping** | Playwright, BeautifulSoup, HTTPX |
-| **Database** | PostgreSQL 16 |
-| **Cache** | Redis 7 |
-| **Auth** | Google OAuth 2.0, JWT |
-| **Infrastructure** | Docker, Docker Compose, Nginx |
-
----
-
-## 🏗️ Architecture
+You need Docker with Compose. Copy the example env file and fill in what
+you have:
 
 ```
-                        ┌─────────┐
-                        │  User   │
-                        └────┬────┘
-                             │ HTTPS
-                        ┌────▼────┐
-                        │  Nginx  │
-                        └────┬────┘
-               ┌─────────────┴─────────────┐
-               │                           │
-        ┌──────▼──────┐            ┌───────▼───────┐
-        │  React      │            │  FastAPI      │
-        │  Frontend   │            │  Backend      │
-        └─────────────┘            └───┬───────────┘
-                                       │
-                    ┌──────────────────┼──────────────────┐
-                    │                  │                   │
-             ┌──────▼──────┐  ┌───────▼──────┐  ┌────────▼────────┐
-             │ PostgreSQL  │  │   Redis      │  │  Playwright     │
-             │ (products,  │  │   (cache)    │  │  Scrapers       │
-             │  history,   │  └──────────────┘  │ (Amazon,        │
-             │  users)     │                     │  Flipkart,      │
-             └─────────────┘                     │  Nykaa, ...)    │
-                                                 └─────────────────┘
-```
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-
-- [Docker](https://docs.docker.com/get-docker/) ≥ 24
-- [Docker Compose](https://docs.docker.com/compose/install/) ≥ 2.20
-
-### Installation
-
-```bash
-# 1. Clone the repository
-git clone https://github.com/SachuJames/ProjectZyra.git
-cd ProjectZyra
-
-# 2. Set up environment variables
 cp .env.example .env
-
-# 3. Fill in the required keys in .env
-#    - GOOGLE_CLIENT_ID / GOOGLE_CLIENT_SECRET
-#    - GEMINI_API_KEY
-#    - SECRET_KEY (JWT)
-#    - SMTP credentials (for email alerts)
-
-# 4. Start all services
 docker compose up --build
 ```
 
-The app will be available at **http://localhost:3000** and the API at **http://localhost:8000**.
+Then open http://localhost. Nginx serves the app on port 80 and forwards
+`/api/` to the backend. The pieces are also reachable directly: frontend
+(Vite) on :5173, API on :8000, Postgres on :5433, Redis on :6379.
 
----
+The env keys, from `.env.example`:
 
-## 📡 API Endpoints
+| Key | Needed for |
+|---|---|
+| `DATABASE_URL`, `REDIS_URL` | The compose defaults already point at the bundled services |
+| `JWT_SECRET` | Signing login tokens |
+| `GOOGLE_CLIENT_ID` | Google sign-in |
+| `RESEND_API_KEY` | Price drop alert emails |
+| `GEMINI_API_KEY` | The product summary endpoint (optional) |
+| `SERPAPI_KEY` | An extra results pass through SerpApi / Google Shopping (optional) |
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `GET` | `/search?q={query}` | Search and compare prices across all platforms |
-| `GET` | `/products/{id}` | Get product details and price history |
-| `POST` | `/alerts` | Create a price drop alert for a product |
-| `DELETE`| `/alerts/{id}` | Remove a price drop alert |
-| `GET` | `/auth/google` | Initiate Google OAuth login |
-| `GET` | `/auth/callback` | Google OAuth callback handler |
-| `GET` | `/auth/me` | Get current authenticated user profile |
-| `POST` | `/auth/logout` | Log out and invalidate session |
-| `GET` | `/admin/stats` | Admin: platform-wide analytics (admin only) |
-| `GET` | `/admin/logs` | Admin: recent search and scrape logs (admin only) |
+Note that `docker-compose.yml` currently carries a shared Google client ID
+and database password as defaults so the stack runs out of the box. Fine for
+local use; override them in `.env` before putting this anywhere public.
 
----
+## How a search flows
 
-## 📸 Screenshots
+```
+GET /search?q=...
+  -> Redis cache (15 min) 
+  -> scrape_all: eight store scrapers in parallel, failures skipped
+  -> normalize_results: embedding similarity groups duplicates,
+     lowest price per group flagged
+  -> products and price history written to Postgres
+  -> response grouped by product, one price per store
+```
 
-> *Screenshots will be added after the first stable release.*
+There is also `POST /search/by-url` if you already have a product link from
+one of the supported stores, and `POST /scrape` to refresh the catalogue
+for a query without going through the cache.
 
----
+## API
 
-## 👤 Author
+All routes are on the backend (:8000), and under `/api/` when going
+through Nginx.
 
-**Sachu James**
-CSE Student · APJ Abdul Kalam Technological University
+| Route | What it does |
+|---|---|
+| `GET /health` | Liveness check |
+| `GET /search?q=` | Search all stores, grouped and cached |
+| `POST /search/by-url` | Look up one product by its store URL |
+| `POST /scrape` | Scrape and store results for a query |
+| `GET /product/{id}` | Product details |
+| `GET /product/{id}/history` | Recorded price history |
+| `GET /product/{id}/summary` | Gemini summary (needs `GEMINI_API_KEY`) |
+| `POST /auth/register`, `POST /auth/login` | Email and password accounts |
+| `POST /auth/google` | Google sign-in |
+| `GET /auth/me` | Current user |
+| `POST /track` | Create a price alert (login required) |
+| `GET /dashboard/alerts` | Your alerts |
+| `GET /dashboard/history`, `GET /dashboard/searches` | Your tracked products and searches |
+| `GET /admin/stats` | Platform totals (admin) |
+| `GET /admin/top-searches`, `GET /admin/platform-breakdown` | Search and store breakdowns (admin) |
+| `GET /admin/recent-alerts`, `GET /admin/search-history` | Recent activity (admin) |
 
-<p>
-  <a href="https://github.com/SachuJames">
-    <img src="https://img.shields.io/badge/GitHub-SachuJames-181717?style=for-the-badge&logo=github&logoColor=white" alt="GitHub"/>
-  </a>
-</p>
+## Layout
 
----
+```
+backend/app/
+  main.py        routes, search flow, alert scheduler, summary endpoint
+  scrapers.py    one scraper per store, plus the SerpApi pass and URL lookup
+  normalizer.py  embedding based grouping of duplicate listings
+  auth.py        password hashing, JWT, Google credential checks
+  models.py      User, Product, PriceHistory, PriceAlert, SearchLog
+  database.py    SQLAlchemy setup
+frontend/src/
+  pages/         Home, SearchResults, ProductDetail, Dashboard,
+                 AdminDashboard, Login, Register
+nginx/           reverse proxy: / to the frontend, /api/ to the backend
+```
 
-## 📄 License
+## Honest limitations
 
-This project is licensed under the [MIT License](LICENSE).
+Scraping is the fragile part, by nature. Stores change their markup and
+block automated traffic, so a scraper can quietly start returning nothing;
+the search still succeeds with whichever stores answered. Prices are
+whatever the store showed at scrape time, including whatever offers or
+pin codes were baked into that page, so treat them as a guide rather than a
+quote. The grouping is similarity based, which means a variant (different
+size, different pack) can occasionally land in the same group as the base
+product. And the alert emails currently send from Resend's shared
+onboarding address, which is fine for trying it out and not what you would
+ship.
+
+## License
+
+MIT. See [LICENSE](LICENSE).
